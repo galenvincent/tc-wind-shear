@@ -1,5 +1,6 @@
 # Unit tests file for the tc-wind-shear project
+import pytest
+import intro
 
-def test_example():
-    assert 1 == 1, "Test example here"
-
+def test_get_shear_stamp():
+    assert 1 == 1
