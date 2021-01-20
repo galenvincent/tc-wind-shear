@@ -19,7 +19,7 @@ class GeoLocation:
     MIN_LON = math.radians(-180)
     MAX_LON = math.radians(180)
     
-    EARTH_RADIUS = 6378.1  # kilometers
+    EARTH_RADIUS = 6371.000  # kilometers
     
     
     @classmethod
@@ -118,10 +118,21 @@ class GeoLocation:
         sw_loc = GeoLocation.from_radians(min_lat, min_lon)
         ne_loc = GeoLocation.from_radians(max_lat, max_lon)
 
-        min_lat = min(sw_loc.deg_lat, ne_loc.deg_lat)
-        max_lat = max(sw_loc.deg_lat, ne_loc.deg_lat)
-        min_lon = min(sw_loc.deg_lon, ne_loc.deg_lon)
-        max_lon = max(sw_loc.deg_lon, ne_loc.deg_lon)
+        # Code added by Galen Vincent on 01/18/21 to return min and max lon/lat 
+        # in degrees with longitude transformed from (-180, 180) scale to (0, 360)
+        # scale
+        sw_lat = sw_loc.deg_lat
+        sw_lon = sw_loc.deg_lon
+        ne_lat = ne_loc.deg_lat
+        ne_lon = ne_loc.deg_lon
+
+        if sw_lon < 0:
+            sw_lon = sw_lon + 360
+        if ne_lon < 0:
+            ne_lon = ne_lon + 360
+
+        min_lat, max_lat = sorted([sw_lat, ne_lat])
+        min_lon, max_lon = sorted([sw_lon, ne_lon])
         
         return [min_lat, max_lat, min_lon, max_lon]
 
@@ -142,6 +153,6 @@ if __name__ == '__main__':
     # Test bounding box
     loc = GeoLocation.from_degrees(26.062951, -80.238853)
     distance = 1  # 1 kilometer
-    SW_loc, NE_loc = loc.bounding_locations(distance)
-    print(loc.distance_to(SW_loc))
-    print(loc.distance_to(NE_loc))
+    #SW_loc, NE_loc = loc.bounding_locations(distance)
+    #print(loc.distance_to(SW_loc))
+    #print(loc.distance_to(NE_loc))
