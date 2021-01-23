@@ -1,5 +1,5 @@
 import credentials
-import bounding_box as bb
+import GeoLocation as geo
 
 from siphon.catalog import TDSCatalog
 from siphon.http_util import session_manager
@@ -8,27 +8,53 @@ import numpy as np
 import xarray as xr 
 import math
 
-# Set RDA login from credentials.py
-session_manager.set_session_options(auth = (credentials.RDA_USER, credentials.RDA_PASSWORD))
+def gfs_access(year, month, day, hour, username, password):
+    """
+    Return a remote access object for a GFS dataset.
 
-def get_shear_stamp(year, month, day, hour, 
-                    lat, lon, radius, 
-                    username, password):
+    Parameters:
+        - year (int): Year of requested data access (2015 - present).
+        - month (int): Month of requested data access. 
+        - day (int): Day of requested data access.
+        - hour (int): Hour of analysis for dataset. One of [0, 6, 12, 18].
+        - username (str): RDA account username. 
+        - password (str): RDA account password. 
+
+    Returns:
+        An object returned from remote_access function from the siphon module. 
+    """
+
+    # Convert time info into datetime object for easy maneuvering
+    assert year >= 2015, "Year must be >= 2015"
+    assert month >= 1 and month <= 12, "Month must be in [1, 12]"
+    assert hour in [0, 6, 12, 18], "Hour must be one of 0, 6, 12, 18"
+    ymdh = datetime(year, month, day, hour)
+
+    # Set catalog URL and dataset name from time info
+    catalog_url = ymdh.strftime("https://rda.ucar.edu/thredds/catalog/files/g/ds084.1/%Y/%Y%m%d/catalog.xml")
+    dataset_name = ymdh.strftime("gfs.0p25.%Y%m%d%H.f000.grib2")
+
+    # Set RDA username and password
+    session_manager.set_session_options(auth = (username, password))
+
+    # Get remote access to data
+    catalog = TDSCatalog(catalog_url)
+    ds = catalog.datasets[dataset_name]
+    dataset = ds.remote_access()
+
+    return dataset
+
+def shear_stamp(lat, lon, radius, dataset):
     """
     Retrieves a circular stamp of wind shear from GFS analysis (not forecast) 
     data associated with input parameter specifications. 
 
     Parameters:
-        - year (int): after 2015, which is historical GFS data avalability for 
-        the best resolution.
-        - month (int)
-        - day (int)
-        - hour (int): 0, 6, 12, or 18. These are the hours that GFS is run.
-        - lat (float): latitude for the center of the stamp (-90 - 90)
-        - lon (float):  longitude for the center of the stamp (-180 - 180).
+        - lat (float): latitude for the center of the stamp (-90, 90)
+        - lon (float):  longitude for the center of the stamp (-180, 180).
         - radius (float): radius of the circular stamp (km).
-        - username (str): RDA username for accessing GFS data. 
-        - password (str): RDA password for accessing GFS data.
+        - dataset: A GFS remote dataset as returned by the gfs_access()
+        function.
 
     Returns:
         (DataArray) A xarray DataArray object containing the zonal (u)/ 
@@ -39,19 +65,10 @@ def get_shear_stamp(year, month, day, hour,
         Use the quadrantize() function to split up the wind shear data into 
         quadrants from a specified direction.
     """
-
-    # Convert time info into datetime object for easy maneuvering
-    assert year >= 2015, "Year must be >= 2015"
-    assert month >= 1 and month <= 12, "Month must be in [1, 12]"
-    assert hour in [0, 6, 12, 18], "Hour must be one of 0, 6, 12, 18"
-    ymdh = datetime(year, month, day, hour)
-
-    # Set catalog URL and dataset name from time info
-    cat_url = ymdh.strftime("https://rda.ucar.edu/thredds/catalog/files/g/ds084.1/%Y/%Y%m%d/catalog.xml")
-    dataset_name = ymdh.strftime("gfs.0p25.%Y%m%d%H.f000.grib2")
-
-    # Get remote access to data
-    dataset = get_gfs_data(cat_url, dataset_name, username, password)
+    
+    assert radius > 0, "radius must be positive"
+    assert lat >= -90 and lat <= 90, "Latitude must be in range (-90, 90)."
+    assert lon >= -180 and lon <= 180, "Longitude must be in range (-180, 180)."
 
     # Pull zonal and meridional wind data at isobaric surfaces
     zonal_isobaric = dataset.variables["u-component_of_wind_isobaric"]
@@ -70,9 +87,8 @@ def get_shear_stamp(year, month, day, hour,
 
     # Get min and max lat/lon based on a bounding box around the circle of 
     # interest. (Note that the radius of this circle is actually the distance
-    # along the great circle of the earth, hence the fancy code in bounding_box)
-    center = bb.GeoLocation.from_degrees(lat, lon)
-    min_lat, max_lat, min_lon, max_lon = center.bounding_locations(radius)
+    # along the great circle of the earth)
+    min_lat, max_lat, min_lon, max_lon = bounding_box(lat, lon, radius)
 
     # Get indices for the bounding lat/lon
     lat_rows = np.where((data_lat >= min_lat) & (data_lat <= max_lat))[0]
@@ -107,6 +123,9 @@ def get_shear_stamp(year, month, day, hour,
     v_wind_shear = v_200_stamp - v_850_stamp
     magnitude_wind_shear = np.sqrt(np.power(u_wind_shear, 2) + np.power(v_wind_shear, 2))
 
+    # Convert center longitude to (0, 360) scale if in (-180, 180) scale:
+    lon += 360 if lon < 0 else lon
+
     shear = xr.DataArray(
         data = np.array([magnitude_wind_shear, u_wind_shear, v_wind_shear]),
         coords = {
@@ -122,33 +141,24 @@ def get_shear_stamp(year, month, day, hour,
             "center_lat": lat,
             "center_lon": lon,
             "stamp_radius": radius,
-            "time": ymdh
-
         }
     )
 
     return shear
 
-def get_wind_stamp(year, month, day, hour, 
-                   lat, lon, radius, pressure, 
-                   username, password):
+def wind_stamp(lat, lon, radius, pressure, dataset):
     """
     Retrieves a circular stamp of wind shear from GFS analysis (not forecast) 
     data associated with input parameter specifications. 
 
     Parameters:
-        - year (int): after 2015, which is historical GFS data avalability for 
-        the best resolution.
-        - month (int)
-        - day (int)
-        - hour (int): 0, 6, 12, or 18. These are the hours that GFS is run.
-        - lat (float): latitude for the center of the stamp (-90 - 90)
-        - lon (float):  longitude for the center of the stamp (-180 - 180).
+        - lat (float): latitude for the center of the stamp (-90, 90)
+        - lon (float):  longitude for the center of the stamp (-180, 180).
         - radius (float): radius of the circular stamp (km).
         - pressure (float): pressure level for wind data (hPa). Closest 
-        available pressure level will be returned. 
-        - username (str): RDA username for accessing GFS data. 
-        - password (str): RDA password for accessing GFS data.
+        available pressure level will be returned.
+        - dataset: A GFS remote dataset as returned by the gfs_access()
+        function. 
 
     Returns:
         (DataArray) A xarray DataArray object containing the zonal (u)/ 
@@ -160,18 +170,9 @@ def get_wind_stamp(year, month, day, hour,
         quadrants from a specified direction.
     """
 
-    # Convert time info into datetime object for easy maneuvering
-    assert year >= 2015, "Year must be >= 2015"
-    assert month >= 1 and month <= 12, "Month must be in [1, 12]"
-    assert hour in [0, 6, 12, 18], "Hour must be one of 0, 6, 12, 18"
-    ymdh = datetime(year, month, day, hour)
-
-    # Set catalog URL and dataset name from time info
-    cat_url = ymdh.strftime("https://rda.ucar.edu/thredds/catalog/files/g/ds084.1/%Y/%Y%m%d/catalog.xml")
-    dataset_name = ymdh.strftime("gfs.0p25.%Y%m%d%H.f000.grib2")
-
-    # Get remote access to data
-    dataset = get_gfs_data(cat_url, dataset_name, username, password)
+    assert radius > 0, "radius must be positive"
+    assert lat >= -90 and lat <= 90, "Latitude must be in range (-90, 90)."
+    assert lon >= -180 and lon <= 180, "Longitude must be in range (-180, 180)."
 
     # Pull zonal and meridional wind data at isobaric surfaces
     zonal_isobaric = dataset.variables["u-component_of_wind_isobaric"]
@@ -192,8 +193,7 @@ def get_wind_stamp(year, month, day, hour,
     # Get min and max lat/lon based on a bounding box around the circle of 
     # interest. (Note that the radius of this circle is actually the distance
     # along the great circle of the earth, hence the fancy code in bounding_box)
-    center = bb.GeoLocation.from_degrees(lat, lon)
-    min_lat, max_lat, min_lon, max_lon = center.bounding_locations(radius)
+    min_lat, max_lat, min_lon, max_lon = bounding_box(lat, lon, radius)
 
     # Get indices for the bounding lat/lon
     lat_rows = np.where((data_lat >= min_lat) & (data_lat <= max_lat))[0]
@@ -222,6 +222,9 @@ def get_wind_stamp(year, month, day, hour,
     # Calculate wind magnitude
     magnitude = np.sqrt(np.power(u_stamp, 2) + np.power(v_stamp, 2))
 
+    # Convert center longitude to (0, 360) scale if in (-180, 180) scale:
+    lon += 360 if lon < 0 else lon
+
     wind = xr.DataArray(
         data = np.array([magnitude, u_stamp, v_stamp]),
         coords = {
@@ -238,35 +241,10 @@ def get_wind_stamp(year, month, day, hour,
             "center_lon": lon,
             "pressure_level": pressure_used,
             "stamp_radius": radius,
-            "time": ymdh
-
         }
     )
 
     return wind
-
-def get_gfs_data(catalog_url, dataset_name, username, password):
-    """
-    Helper function to return a remote access object with the desired dataset.
-
-    Parameters:
-        - catalog_url (str): URL of the RDA catalog the dataset is in.
-        - dataset_name (str): Name of the dataset within the catalog. 
-        - username (str): RDA account username. 
-        - password (str): RDA accound password. 
-
-    Returns:
-        An object returned from remote_access function from the siphon module. 
-    """
-    # Set RDA username and password
-    session_manager.set_session_options(auth = (username, password))
-
-    # Get remote access to data
-    catalog = TDSCatalog(catalog_url)
-    ds = catalog.datasets[dataset_name]
-    dataset = ds.remote_access()
-
-    return dataset
 
 def great_circ_dist(lat1, lon1, lat2, lon2):
     """
@@ -304,6 +282,42 @@ def great_circ_dist(lat1, lon1, lat2, lon2):
 
     return dist
 
+def bounding_box(center_lat, center_lon, radius):
+    """
+    Get bounding box of longitude and latitude that fits a certain radius 
+    within it. Mostly based on code in the GeoLocation module, which was 
+    taken from:
+        https://github.com/jfein/PyGeoTools/blob/master/geolocation.py
+
+    Parameters:
+        - center_lat (float): Latitude for the center of the box (-90, 90).
+        - center_lon (float): Longitude for the center of the box (-180, 180).
+        - radius (float): Radius to be held within the box (km).
+
+    Returns:
+        (list): A list of [minimum latitude, maximum latitude, minimum longitude,
+        maximum longitude] for the bounding box, where longitude is now on
+        (0, 360) to mesh with the GFS data well.
+    """
+    center = geo.GeoLocation.from_degrees(center_lat, center_lon)
+    sw_loc, ne_loc = center.bounding_locations(radius)
+
+    sw_lat = sw_loc.deg_lat
+    sw_lon = sw_loc.deg_lon
+    ne_lat = ne_loc.deg_lat
+    ne_lon = ne_loc.deg_lon
+
+    # Convert longitude to (0, 360) range to mesh with GFS data
+    if sw_lon < 0:
+        sw_lon += 360
+    if ne_lon < 0:
+        ne_lon += 360
+
+    min_lat, max_lat = sorted([sw_lat, ne_lat])
+    min_lon, max_lon = sorted([sw_lon, ne_lon])
+        
+    return [min_lat, max_lat, min_lon, max_lon]
+
 def quadrantize(x, dir_u, dir_v):
     """
     Determines quadrants based on an initial direction vector.
@@ -316,8 +330,8 @@ def quadrantize(x, dir_u, dir_v):
     and returned.
 
     Parameters:
-        - x (DataArray): Wind shear or wind data output from the get_shear_stamp()
-        or get_wind_stamp() functions. 
+        - x (DataArray): Wind shear or wind data output from the shear_stamp()
+        or wind_stamp() functions. 
         - dir_u (float): zonal (east) component of the direction vector.
         - dir_v (float): meridional (north) component of the direction vector.
     
@@ -326,6 +340,9 @@ def quadrantize(x, dir_u, dir_v):
         indicate which quadrant each data point is in.
     """
     
+    assert dir_u != 0 or dir_v != 0, "One of dir_u or dir_v must be non-zero."
+    assert isinstance(x, xr.core.dataarray.DataArray), "x must be a DataArray."
+
     # Get latitude and longitude arrays from the DataArray object
     lat = x.lat.values
     lon = x.lon.values
@@ -338,9 +355,8 @@ def quadrantize(x, dir_u, dir_v):
     center_lat = x.attrs["center_lat"]
     center_lon = x.attrs["center_lon"]
 
-    # Convert to 0-360 scaled longitude to match data from DataArray
-    if center_lon < 0:
-        center_lon = center_lon + 360
+    # Convert to (0, 360) scaled longitude if in (-180, 180) scale.
+    center_lon += 360 if center_lon < 0 else center_lon
 
     # Create centered lat/lon data and put into one array
     uv_grid = np.array([lon_grid - center_lon, lat_grid - center_lat])
@@ -374,9 +390,152 @@ def quadrantize(x, dir_u, dir_v):
 
     return x
 
+def pressure_min(seed_lat, seed_lon, search_radius, dataset):
+    """
+    Determines the center of a TC based on surface-level pressure minimum
+    within some search radius of the seed latitude and longitude.
 
-y = get_shear_stamp(2019, 1, 10, 18, 
-                42.756, -105.012831, 800, 
-                credentials.RDA_USER, credentials.RDA_PASSWORD)
+    Parameters:
+        - seed_lat (float): Latitude of seed searching point.
+        - seed_lon (float): Longitude of seed searching point. 
+        - search_radius (float): The distance (km) you would like to search in 
+        all directions for the pressure minimum. Only pressure within this 
+        radius will be evaluated. 
+        - dataset: A GFS remote dataset as returned by the gfs_access()
+        function.
+    
+    Returns:
+        (numpy.ndarray): An array of [lat, lon] of the pressure minimum 
+        latitude: (-90, 90), longitude: (-180, 180).
+    """
 
+    assert search_radius > 0, "radius must be positive"
+    assert seed_lat >= -90 and seed_lat <= 90, "Latitude must be in range (-90, 90)."
+    assert seed_lon >= -180 and seed_lon <= 180, "Longitude must be in range (-180, 180)."
+
+    # Pull pressure at surface level
+    pressure_ds = dataset.variables["Pressure_surface"]
+
+    lat = dataset.variables["lat"][:]
+    lon = dataset.variables["lon"][:]
+
+    # Get min and max lat/lon based on a bounding box around the circle of 
+    # interest. (Note that the radius of this circle is actually the distance
+    # along the great circle of the earth, hence the fancy code in bounding_box)
+    min_lat, max_lat, min_lon, max_lon = bounding_box(seed_lat, seed_lon, search_radius)
+
+    # Get indices for the bounding lat/lon
+    lat_rows = np.where((lat >= min_lat) & (lat <= max_lat))[0]
+    lon_rows = np.where((lon >= min_lon) & (lon <= max_lon))[0]
+    min_lat_ind, max_lat_ind = [min(lat_rows) - 1, max(lat_rows) + 1]
+    min_lon_ind, max_lon_ind = [min(lon_rows) - 1, max(lon_rows) + 1]
+
+    # Get the pressure data from within the bounding box
+    pressure = pressure_ds[0, min_lat_ind:max_lat_ind, min_lon_ind:max_lon_ind]
+
+    lat_subset = lat[min_lat_ind:max_lat_ind]
+    lon_subset = lon[min_lon_ind:max_lon_ind]
+    lat_grid, lon_grid = [x.T for x in np.meshgrid(lat_subset, lon_subset)]
+
+    # Subset out a circular stamp of the data
+    # Distance from each point to the center
+    dist_mat = great_circ_dist(seed_lat, seed_lon, lat_grid, lon_grid)
+    dist_tf = dist_mat > search_radius
+    # Make a masked array based on this radius.
+    pressure_stamp = np.ma.array(pressure, mask = dist_tf)
+    min_ind = np.unravel_index(np.argmin(pressure_stamp), pressure_stamp.shape)
+
+    lat_min = lat_grid[min_ind]
+    lon_min = lon_grid[min_ind]
+
+    lon_min -= 360 if lon_min > 180 else lon_min
+
+    return [lat_min, lon_min]
+
+def vorticity_centroid(seed_lat, seed_lon, pressure, search_radius, calc_radius, dataset):
+    """
+    Determines the center of a TC based on the isobaric vorticity centroid at
+    some specific pressure. Calculations done within some calculation radius of 
+    the seed latitude and longitude. Center of the TC is firrst initialized 
+    from the seed location using minimum pressure. 
+
+    Parameters:
+        - seed_lat (float): Latitude of seed searching point.
+        - seed_lon (float): Longitude of seed searching point. 
+        - pressure (float): The isobar to evaluate vorticity at (hPa). Closest 
+        available pressure level available in the data will be used.
+        - search_radius (float): The distance (km) you would like to search in 
+        all directions for the pressure minimum used to initialize the 
+        vorticity calculation. 
+        - calc_radius (float): The distanec (km) you would like to take the
+        vorticity centroid over.
+        - dataset: A GFS remote dataset as returned by the gfs_access()
+        function.
+    
+    Returns:
+        (numpy.ndarray): An array of [lat, lon] of the vorticity centroid.
+    """
+
+    assert search_radius > 0, "radius must be positive"
+    assert seed_lat >= -90 and seed_lat <= 90, "Latitude must be in range (-90, 90)."
+    assert seed_lon >= -180 and seed_lon <= 180, "Longitude must be in range (-180, 180)."
+
+    # Pull the absolute vorticity dataset
+    vort_ds = dataset.variables["Absolute_vorticity_isobaric"]
+
+    iso_number = vort_ds.dimensions[1]
+    pressure_levels = dataset.variables[iso_number][:]
+    lat = dataset.variables["lat"][:]
+    lon = dataset.variables["lon"][:]
+
+    # Get closest pressure index
+    pressure = pressure * 100 # convert from hPa to Pa
+    pressure_ind = np.argmin(np.abs(pressure_levels - pressure))
+
+    lat = dataset.variables["lat"][:]
+    lon = dataset.variables["lon"][:]
+
+    pressure_lat, pressure_lon = pressure_min(seed_lat, seed_lon, search_radius, dataset)
+    # Convert long to (-180, 180) for the sake of bounding box
+
+    # Get min and max lat/lon based on a bounding box around the circle of 
+    # interest. (Note that the radius of this circle is actually the distance
+    # along the great circle of the earth, hence the fancy code in bounding_box)
+    min_lat, max_lat, min_lon, max_lon = bounding_box(pressure_lat, pressure_lon, calc_radius)
+
+    # Get indices for the bounding lat/lon
+    lat_rows = np.where((lat >= min_lat) & (lat <= max_lat))[0]
+    lon_rows = np.where((lon >= min_lon) & (lon <= max_lon))[0]
+    min_lat_ind, max_lat_ind = [min(lat_rows) - 1, max(lat_rows) + 1]
+    min_lon_ind, max_lon_ind = [min(lon_rows) - 1, max(lon_rows) + 1]
+
+    # Get the pressure data from within the bounding box
+    vort = vort_ds[0, pressure_ind, min_lat_ind:max_lat_ind, min_lon_ind:max_lon_ind]
+
+    lat_subset = lat[min_lat_ind:max_lat_ind]
+    lon_subset = lon[min_lon_ind:max_lon_ind]
+    lat_grid, lon_grid = [x.T for x in np.meshgrid(lat_subset, lon_subset)]
+
+    # Subset out a circular stamp of the data
+    # Distance from each point to the center
+    dist_mat = great_circ_dist(pressure_lat, pressure_lon, lat_grid, lon_grid)
+    dist_tf = dist_mat > calc_radius
+    # Make a masked array based on this radius.
+    vort_stamp = np.ma.array(vort, mask = dist_tf)
+    
+    # Calculate centroid
+    lat_min = np.sum(vort_stamp * lat_grid)/np.sum(vort_stamp)
+    lon_min = np.sum(vort_stamp * lon_grid)/np.sum(vort_stamp)
+
+    return [lat_min, lon_min]
+
+# Ideas for the future:
+#   - Figure out how to calculate the radius of maximal wind (RMW) and then use 
+#   this papers (https://www.mdpi.com/2073-4433/10/7/376/htm) suggestion of 2.25
+#   RMW as the distance to calculate vorticity over. 
+#   - You might need a very similar function to calculate RMW that you will need
+#   to calculate radial ORB! so that can come in handy. 
+    
+ds = gfs_access(2020, 11, 3, 0, credentials.RDA_USER, credentials.RDA_PASSWORD)
+y = shear_stamp(14.3, 277.5 - 360, 800, ds)
 quadrantize(y, 1, -1)
