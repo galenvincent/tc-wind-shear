@@ -1,5 +1,6 @@
 import credentials
 import GeoLocation as geo
+import kernels as k
 
 from siphon.catalog import TDSCatalog
 from siphon.http_util import session_manager
@@ -57,13 +58,13 @@ def shear_stamp(lat, lon, radius, dataset):
         function.
 
     Returns:
-        (DataArray) A xarray DataArray object containing the zonal (u)/ 
+        (xarray.DataArray) A xarray DataArray object containing the zonal (u)/ 
         meridional (v) directions and magnitude for a circular stamp of vertical
         wind shear calculated between the 200 and 850 hPa isobars. 
 
     Additional Details:
-        Use the quadrantize() function to split up the wind shear data into 
-        quadrants from a specified direction.
+        Use the sectorize() function to split up the wind shear data into 
+        sectors from a specified direction.
     """
     
     assert radius > 0, "radius must be positive"
@@ -123,8 +124,13 @@ def shear_stamp(lat, lon, radius, dataset):
     v_wind_shear = v_200_stamp - v_850_stamp
     magnitude_wind_shear = np.sqrt(np.power(u_wind_shear, 2) + np.power(v_wind_shear, 2))
 
+    # Calculate the area-averaged wind shear vector
+    u_mean = np.nanmean(u_wind_shear)
+    v_mean = np.nanmean(v_wind_shear)
+    mag_mean = np.sqrt(np.power(u_mean, 2) + np.power(v_mean, 2))
+
     # Convert center longitude to (0, 360) scale if in (-180, 180) scale:
-    lon += 360 if lon < 0 else lon
+    lon = lon + 360 if lon < 0 else lon
 
     shear = xr.DataArray(
         data = np.array([magnitude_wind_shear, u_wind_shear, v_wind_shear]),
@@ -132,6 +138,7 @@ def shear_stamp(lat, lon, radius, dataset):
             "component": ["magnitude", "u", "v"],
             "lat": lat_subset,
             "lon": lon_subset,
+            "sector": (("lat", "lon"), np.ones((lat_subset.size, lon_subset.size)))
         },
         dims = ["component", "lat", "lon"],
         name = "200-850hPa_wind_shear",
@@ -141,6 +148,10 @@ def shear_stamp(lat, lon, radius, dataset):
             "center_lat": lat,
             "center_lon": lon,
             "stamp_radius": radius,
+            "sector_direction": (0, 0),
+            "u_avg": u_mean,
+            "v_avg": v_mean,
+            "magnitude_avg": mag_mean
         }
     )
 
@@ -161,13 +172,13 @@ def wind_stamp(lat, lon, radius, pressure, dataset):
         function. 
 
     Returns:
-        (DataArray) A xarray DataArray object containing the zonal (u)/ 
+        (xarray.DataArray) A xarray DataArray object containing the zonal (u)/ 
         meridional (v) directions and magnitude for a circular stamp of GFS
         isobaric wind data at the specified time, location, and radius. 
 
     Additional Details:
-        Use the quadrantize() function to split up the wind shear data into 
-        quadrants from a specified direction.
+        Use the sectorize() function to split up the wind shear data into 
+        sectors from a specified direction.
     """
 
     assert radius > 0, "radius must be positive"
@@ -223,7 +234,7 @@ def wind_stamp(lat, lon, radius, pressure, dataset):
     magnitude = np.sqrt(np.power(u_stamp, 2) + np.power(v_stamp, 2))
 
     # Convert center longitude to (0, 360) scale if in (-180, 180) scale:
-    lon += 360 if lon < 0 else lon
+    lon = lon + 360 if lon < 0 else lon
 
     wind = xr.DataArray(
         data = np.array([magnitude, u_stamp, v_stamp]),
@@ -231,6 +242,7 @@ def wind_stamp(lat, lon, radius, pressure, dataset):
             "component": ["magnitude", "u", "v"],
             "lat": lat_subset,
             "lon": lon_subset,
+            "sector": (("lat", "lon"), np.ones((lat_subset.size, lon_subset.size)))
         },
         dims = ["component", "lat", "lon"],
         name = "wind_stamp",
@@ -241,6 +253,7 @@ def wind_stamp(lat, lon, radius, pressure, dataset):
             "center_lon": lon,
             "pressure_level": pressure_used,
             "stamp_radius": radius,
+            "sector_direction": (0, 0)
         }
     )
 
@@ -309,39 +322,43 @@ def bounding_box(center_lat, center_lon, radius):
 
     # Convert longitude to (0, 360) range to mesh with GFS data
     if sw_lon < 0:
-        sw_lon += 360
+        sw_lon = sw_lon + 360
     if ne_lon < 0:
-        ne_lon += 360
+        ne_lon = ne_lon + 360
 
     min_lat, max_lat = sorted([sw_lat, ne_lat])
     min_lon, max_lon = sorted([sw_lon, ne_lon])
         
     return [min_lat, max_lat, min_lon, max_lon]
 
-def quadrantize(x, dir_u, dir_v):
+def sectorize(x, dir_u, dir_v, n_sector = 4):
     """
-    Determines quadrants based on an initial direction vector.
+    Determines sectors based on an initial direction vector.
 
     Takes in an xarray DataArray object (x) with lat/lon coordinates and
     an attribute indicating the center latitude and longitude. Then computes
-    quadrants based on some direction vector given by (dir_u, dir_v), where
-    the quadrants 1, 2, 3, 4 are labeled in a counter-clockwise direction
-    starting at (dir_u, dir_v). These quadrant labels are added to the DataArray
+    sectors based on some direction vector given by (dir_u, dir_v), where
+    the sectors are labeled increasing in a counter-clockwise direction
+    starting at (dir_u, dir_v). These sector labels are added to the DataArray
     and returned.
 
     Parameters:
-        - x (DataArray): Wind shear or wind data output from the shear_stamp()
-        or wind_stamp() functions. 
+        - x (xarray.DataArray): Wind shear or wind data output from the 
+        shear_stamp() or wind_stamp() functions. 
         - dir_u (float): zonal (east) component of the direction vector.
         - dir_v (float): meridional (north) component of the direction vector.
+        - n_sector (int): Number of sectors you want to split the stamp into.
+        Defalut is 4 (splitting into quadrants). This number must be a power 
+        of 2 (i.e. 2, 4, 8, etc.).
     
     Returns:
-        (DataArray): An updated DataArray object with a new coordinate to 
-        indicate which quadrant each data point is in.
+        (xarray.DataArray): An updated DataArray object with a new coordinate to 
+        indicate which sector each data point is in.
     """
     
     assert dir_u != 0 or dir_v != 0, "One of dir_u or dir_v must be non-zero."
     assert isinstance(x, xr.core.dataarray.DataArray), "x must be a DataArray."
+    assert np.floor(np.log2(n_sector)) == np.ceil(np.log2(n_sector)), "n_sector must be a power of 2"
 
     # Get latitude and longitude arrays from the DataArray object
     lat = x.lat.values
@@ -356,7 +373,7 @@ def quadrantize(x, dir_u, dir_v):
     center_lon = x.attrs["center_lon"]
 
     # Convert to (0, 360) scaled longitude if in (-180, 180) scale.
-    center_lon += 360 if center_lon < 0 else center_lon
+    center_lon = center_lon + 360 if center_lon < 0 else center_lon
 
     # Create centered lat/lon data and put into one array
     uv_grid = np.array([lon_grid - center_lon, lat_grid - center_lat])
@@ -366,7 +383,7 @@ def quadrantize(x, dir_u, dir_v):
     # See https://stackoverflow.com/questions/14066933/direct-way-of-computing-clockwise-angle-between-2-vectors/16544330#16544330
     # for explanation of how I am calculating the angle between two vectors here
     # to preserve the full 360 degrees of identifiability needed to divide into
-    # four quadrants
+    # four sectors
     direction = np.array([dir_u, dir_v])
     direction_for_wacky_product = np.array([-1*dir_v, dir_u])
 
@@ -374,19 +391,21 @@ def quadrantize(x, dir_u, dir_v):
     det = np.einsum("i,ijk", direction_for_wacky_product, uv_grid)    
     angles = np.arctan2(det, dot)
 
-    # Create array containing the quadrant number for each (lon, lat) pair. 
-    # Numbering is 1, 2, 3, 4 counterclockwise starting from the given direction
-    conditions = [angles >= np.pi/2, 
-                  (angles < np.pi/2) & (angles >= 0), 
-                  (angles < 0) & (angles >= -np.pi/2),
-                  angles < -np.pi/2]
-    choices = [2, 1, 4, 3]
+    # Create array containing the sector number for each (lon, lat) pair. 
+    # Numbering is increasing counterclockwise starting from the given direction.
+    angle_breaks = np.linspace(np.pi, -np.pi, n_sector+1)
+    conditions = []
+    for ii in range(0, angle_breaks.size - 1):
+        conditions.append( (angles <= angle_breaks[ii]) & (angles > angle_breaks[ii + 1]) )
 
-    quadrants = np.select(conditions, choices, default = np.nan)
+    # Draw a picture to see why the numbering scheme works like this
+    choices = np.concatenate((np.arange(n_sector/2, 0, -1), np.arange(n_sector, n_sector/2, -1)))
+
+    sectors = np.select(conditions, choices, default = np.nan)
 
     # Update the DataArray and return 
-    x = x.assign_coords({"quadrant": (("lat", "lon"), quadrants)})
-    x.attrs["quadrant_direction"] = (dir_u, dir_v)
+    x = x.assign_coords({"sector": (("lat", "lon"), sectors)})
+    x.attrs["sector_direction"] = (dir_u, dir_v)
 
     return x
 
@@ -529,6 +548,110 @@ def vorticity_centroid(seed_lat, seed_lon, pressure, search_radius, calc_radius,
 
     return [lat_min, lon_min]
 
+def radial_profile(x, stride, h, kernel = k.epanechnikov):
+    """
+    Compute the radial profiles of a stamp.
+
+    Computes radial profiles for stamps returned from shear_stamp() or 
+    wind_stamp() functions. Will compute separate profiles for however many 
+    different sectors are encoded in the data (default is 1, but could be
+    4 after applying the sectorize() function).
+    
+    A kernel with bandwidth h around each radius is used to calculate the radial
+    profile, so each profile is the average shear/wind around r +- h weighted by 
+    the kernel.
+
+    Parameters:
+        - x (xarray.DataArray): Wind shear or wind data output from the 
+        shear_stamp() or wind_stamp() functions. Or after applying sectorize().
+        - stride (float): Distance (km) between radii to calculate radial
+        profiles at. 
+        - h (float): Bandwidth (km) for the kernel used to calculate each 
+        radial profile. 
+        - kernel (function): A function from kernels.py or any vectorized kernel 
+        function whose first two arguments are (data, bandwidth).
+    
+    Returns:
+        (xarray.DataArray): A data array containing radial profiles for each 
+        sector for both the u (zonal) and v (meridional) directions. 
+
+    """
+
+    assert isinstance(x, xr.core.dataarray.DataArray), "x must be a DataArray."
+
+    # Get latitude and longitude arrays from the DataArray object
+    lat = x.lat.values
+    lon = x.lon.values
+
+    # Create lat/lon grids out of the arrays, so we have every individual 
+    # (lon, lat) coordinate combination
+    lat_grid, lon_grid = [x.T for x in np.meshgrid(lat, lon)]
+
+    # Get the center of the stamp from the DataArray
+    center_lat = x.attrs["center_lat"]
+    center_lon = x.attrs["center_lon"]
+
+    # Create distance matrix of km from the center of the stamp
+    dist_mat = great_circ_dist(center_lat, center_lon, lat_grid, lon_grid)
+
+    # Create list of radii that we will calculate the radial profile at
+    radii = np.arange(start = 0, stop = x.attrs["stamp_radius"], step = stride)
+
+    # Get the sector information from the DataArray
+    sectors = x.sector.values
+    sectors_unique = np.sort(np.unique(sectors))
+    
+    # Pull the zonal and meridional components
+    u_comp = np.ma.masked_invalid(x.sel(component = "u").values)
+    v_comp = np.ma.masked_invalid(x.sel(component = "v").values)
+    stamp_mask = u_comp.mask
+
+    # Initialize data structure for the profiles
+    profiles = np.zeros((2, sectors_unique.size, radii.size))
+
+    # Loop through each radius we will calcuate at
+    for ii in range(radii.size):
+        # Apply the kernel function at the desired radius to get weights
+        dist_kerneled = np.ma.array(kernel(dist_mat - radii[ii], h))
+        # Multiply weights by the u and v components
+        u_weighted = np.multiply(dist_kerneled, u_comp)
+        v_weighted = np.multiply(dist_kerneled, v_comp)
+
+        # loop through each sector
+        for jj in range(sectors_unique.size):
+            # Create a mask for the specific sector
+            sector_mask = np.logical_or(stamp_mask, sectors != sectors_unique[jj])
+            u_weighted.mask = sector_mask
+            v_weighted.mask = sector_mask
+            dist_kerneled.mask = sector_mask
+
+            # Calculate the weighted average for each component in this sector 
+            # at this radius value
+            profiles[0, jj, ii] = np.sum(u_weighted)/np.sum(dist_kerneled)
+            profiles[1, jj, ii] = np.sum(v_weighted)/np.sum(dist_kerneled)
+
+    # Create the DataArray to return
+    radial_prof = xr.DataArray(
+        data = profiles,
+        coords = {
+            "component": ["u", "v"],
+            "sector": sectors_unique,
+            "radius": radii
+        },
+        dims = ["component", "sector", "radius"],
+        name = "radial_profile",
+        attrs = {
+            "long_name": "Radial ORB function for wind shear or wind.",
+            "center_lat": x.attrs["center_lat"],
+            "center_lon": x.attrs["center_lon"],
+            "stamp_radius": x.attrs["stamp_radius"],
+            "sector_direction": x.attrs["sector_direction"]
+        }
+    )
+
+    return radial_prof
+
+
 # Ideas for the future:
 #   - Figure out how to calculate the radius of maximal wind (RMW) and then use 
 #   this papers (https://www.mdpi.com/2073-4433/10/7/376/htm) suggestion of 2.25
@@ -538,4 +661,5 @@ def vorticity_centroid(seed_lat, seed_lon, pressure, search_radius, calc_radius,
     
 ds = gfs_access(2020, 11, 3, 0, credentials.RDA_USER, credentials.RDA_PASSWORD)
 y = shear_stamp(14.3, 277.5 - 360, 800, ds)
-quadrantize(y, 1, -1)
+y = sectorize(y, 1, -1)
+radial_profile(y, 10, 10)
