@@ -3,3 +3,6 @@ credentials.py
 __pycache__/*
 .DS_Store
 data/*
+figures/*
+eda-dashboard/*
+.Rhistory
