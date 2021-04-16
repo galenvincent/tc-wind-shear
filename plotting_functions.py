@@ -6,7 +6,7 @@ import matplotlib.ticker as mticker
 import numpy as np               # numpy 1.19.4
 import xarray as xr              # xarray 0.16.2
 
-def shear_map(x, savefile = None):
+def shear_map(x, savefile = None, normalized = False):
     tclat = x.attrs["center_lat"]
     tclon = x.attrs["center_lon"]
     if tclon > 180:
@@ -21,6 +21,9 @@ def shear_map(x, savefile = None):
     u = x.sel(component = "u").values
     v = x.sel(component = "v").values
     mag = x.sel(component = "magnitude").values
+
+    contour_array = np.arange(5.,40.1,1.)
+    colorbar_array = np.arange(5.,40.1,5.)
 
     plt.ioff()
     
@@ -45,7 +48,7 @@ def shear_map(x, savefile = None):
     ax = plt.axes(projection=proj)
     ax.set_extent([np.min(glon),np.max(glon),np.min(glat),np.max(glat)], crs=pc)  # center domain on TC latitude & longitude
     ax.coastlines('50m', linewidth=2., zorder=9)
-    im = ax.contourf(glon, glat, mag, np.arange(5.,40.1,1.), 
+    im = ax.contourf(glon, glat, mag, contour_array, 
                     cmap=plt.get_cmap('YlOrRd'), extend='both', transform=pc, zorder=1)  # shading for shear magnitude
     pos = ax.get_position()
     left = pos.x0 - 0.01
@@ -53,7 +56,7 @@ def shear_map(x, savefile = None):
     width = pos.x1 - left
     height = 0.015
     cax = fig.add_axes([left, bottom, width, height])
-    cbar = plt.colorbar(im, cax=cax, ticks=np.arange(5.,40.1,5.), orientation='horizontal')
+    cbar = plt.colorbar(im, cax=cax, ticks=colorbar_array, orientation='horizontal')
     cax.xaxis.set_ticks_position('top')
     cbar.ax.tick_params(labelsize=10, pad=0)
     cbar.set_label('200-850-hPa shear magnitude [m/s]', size=10)
