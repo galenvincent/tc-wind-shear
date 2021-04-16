@@ -634,7 +634,7 @@ def vorticity_centroid(seed_lat, seed_lon, pressure, search_radius, calc_radius,
 
     return [lat_min, lon_min]
 
-def radial_profile(x, stride = 10, h = 25, sector_labels = [], kernel = k.epanechnikov):
+def radial_profile(x, stride = 10, h = 25, sector_labels = [], kernel = k.epanechnikov, normalized = False):
     """
     Compute the radial profiles of a stamp.
 
@@ -697,6 +697,12 @@ def radial_profile(x, stride = 10, h = 25, sector_labels = [], kernel = k.epanec
     u_comp = np.ma.masked_invalid(x.sel(component = "u").values)
     v_comp = np.ma.masked_invalid(x.sel(component = "v").values)
     stamp_mask = u_comp.mask
+
+    # If normalized = True, then normalize the components by the average magnitude
+    if normalized:
+        mag = x.attrs["avg_magnitude"]
+        u_comp = u_comp/mag
+        v_comp = v_comp/mag
 
     if not sector_labels:
         sector_labels = ["placeholder"]
