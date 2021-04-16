@@ -12,6 +12,9 @@ storm_data = pd.read_csv('data/filtered_storm_list.csv')
 storm_data["DATETIME"] = pd.to_datetime(storm_data["DATETIME"])
 
 def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
+    #for id in unique_storms:
+    #id = "AL152016"
+    #id = 'AL012015'
     storm = storm_data[storm_data['ID'].str.match(id)]
     storm = storm.reset_index(drop = True)
     vws = []
@@ -33,7 +36,7 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
         #                                      dataset = gfs_data))
         centers.append([datapoint['LAT'], datapoint['LON']])
 
-        #print("Doing #" + str(index+1) + "/" + str(storm.shape[0]))
+        print("Doing #" + str(index+1) + "/" + str(storm.shape[0]))
 
         # Get wind shear with vortex removed (only for 2nd datapoint on... we only needed the center location for the 1st datapoint to calculate direction for the 2nd datapoint)
         if index != 0:
@@ -75,6 +78,7 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
     velocity_direction_v = [profile.attrs['sector_velocity_direction'][1] for profile in profiles]
     shear_direction_u = [profile.attrs['sector_shear_direction'][0] for profile in profiles]
     shear_direction_v = [profile.attrs['sector_shear_direction'][1] for profile in profiles]
+    shear_magnitude = np.sqrt(np.power(shear_direction_u, 2) + np.power(shear_direction_v, 2))
 
     shear_oriented = np.array([profile.values[:,:,0,:] for profile in profiles])
     velocity_oriented = np.array([profile.values[:,:,1,:] for profile in profiles])
@@ -98,6 +102,7 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
                         'center_lon': ('time', center_lon),
                         'shear_u': ('time', shear_direction_u),
                         'shear_v': ('time', shear_direction_v),
+                        'shear_mag': ('time', shear_magnitude),
                         'velocity_u': ('time', velocity_direction_u),
                         'velocity_v': ('time', velocity_direction_v)  
                     },
@@ -117,6 +122,8 @@ shear_plt_folder = "figures/"
 profiles_folder = "data/profiles/"
 
 unique_storms = pd.Series(np.unique(storm_data['ID']))
+
+profile_storm(unique_storms.iloc[0], storm_data, shear_plt_folder, profiles_folder)
 
 pandarallel.initialize()
 unique_storms.iloc[2:5].parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
