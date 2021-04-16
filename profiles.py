@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 from pandarallel import pandarallel
+import time
 
 import credentials
 import hurdat as h
@@ -41,7 +42,7 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
         # Get wind shear with vortex removed (only for 2nd datapoint on... we only needed the center location for the 1st datapoint to calculate direction for the 2nd datapoint)
         if index != 0:
             vws.append(fun.shear_stamp(centers[index][0], centers[index][1], 800, gfs_data,
-                    vortex_rm = False, vortex_rm_rad = 650))
+                    vortex_rm = True, vortex_rm_rad = 650))
                     #### CHANGE THIS BACK TO TRUE VORTEX REMOVE!!!
 
     # Calculate storm direction
@@ -115,17 +116,24 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
 
     storm_profiles.to_netcdf(profiles_folder+"prof_"+id+".nc")
 
-#shear_plt_folder = "/glade/work/galenv/shear_figs/"
-#profiles_folder = "/glade/work/galenv/shear_profiles/
+shear_plt_folder = "/glade/work/galenv/shear_figs/"
+profiles_folder = "/glade/work/galenv/shear_profiles/"
 
-shear_plt_folder = "figures/"
-profiles_folder = "data/profiles/"
+#shear_plt_folder = "figures/"
+#profiles_folder = "data/profiles/"
 
 unique_storms = pd.Series(np.unique(storm_data['ID']))
 
-profile_storm(unique_storms.iloc[0], storm_data, shear_plt_folder, profiles_folder)
+print("Getting GFS data warmup...")
+gfs_data = fun.gfs_access(2016, 12, 12, 0, credentials.RDA_USER, credentials.RDA_PASSWORD)
+print("GFS data has been gotten! On to the parallel")
 
+time.sleep(3)
+
+print("Setting up parallel env.")
 pandarallel.initialize()
+print("Parallel env set up... starting parallel computations.")
 unique_storms.iloc[2:5].parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
+print("All done!")
 
 #unique_storms.iloc[2:5].apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
