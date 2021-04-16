@@ -89,8 +89,8 @@ def shear_stamp(lat, lon, radius, dataset, vortex_rm = False, vortex_rm_rad = No
     data_lon = dataset.variables["lon"][:]
 
     # Get 200 & 850 hPa indices
-    pressure_200_ind = np.where(pressure_levels == 20000)[0][0]
-    pressure_850_ind = np.where(pressure_levels == 85000)[0][0]
+    pressure_850_ind = np.argmin(np.abs(pressure_levels - 850 * 100))
+    pressure_200_ind = np.argmin(np.abs(pressure_levels - 200 * 100))
 
     # Get min and max lat/lon based on a bounding box around the circle of 
     # interest. (Note that the radius of this circle is actually the distance
