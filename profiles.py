@@ -133,7 +133,7 @@ time.sleep(3)
 print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
-unique_storms.iloc[2:5].parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
+unique_storms.parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
 print("All done!")
 
 #unique_storms.iloc[2:5].apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
