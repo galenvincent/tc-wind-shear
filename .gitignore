@@ -6,3 +6,4 @@ data/profiles/*
 figures/*
 eda-dashboard/*
 .Rhistory
+.ipynb*
