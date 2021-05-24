@@ -6,7 +6,7 @@ import matplotlib.ticker as mticker
 import numpy as np               # numpy 1.19.4
 import xarray as xr              # xarray 0.16.2
 
-def shear_map(x, savefile = None, normalized = False):
+def shear_map(x, savefile = None):
     tclat = x.attrs["center_lat"]
     tclon = x.attrs["center_lon"]
     if tclon > 180:

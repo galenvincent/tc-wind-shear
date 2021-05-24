@@ -2,7 +2,8 @@
 credentials.py
 __pycache__/*
 .DS_Store
-data/profiles/*
+data/profiles_vortex/*
+data/profiles_vortex_removed/*
 figures/*
 eda-dashboard/*
 .Rhistory
