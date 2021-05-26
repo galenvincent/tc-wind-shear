@@ -781,6 +781,22 @@ def radial_profile(x, stride = 10, h = 25, sector_labels = [], kernel = k.epanec
     
     return radial_prof
 
+def vector_rejection(a, b):
+        """
+        Calculate the vector rejection (i.e. perpendicular projection) of vector b onto vector a.
+        
+        Parameters:
+            - a (3d array): an array of shape (2, #lon, #lat) containing vector components for different positions on a grid.
+            - b (3d array): an array of the same shape as a, containing the vector components for projecting onto a.
+
+        Returns:
+            (2d array) an array of shape (2, #lon, #lat) containing the vector rejections.
+        """
+        dot_ab = np.einsum("ijk,ijk->jk", a, b)
+        dot_aa = np.einsum("ijk,ijk->jk", a, a)
+        to_subtract = np.multiply(np.divide(dot_ab, dot_aa), a)
+        return np.subtract(b, to_subtract)
+
 def storm_radius(center_lat, center_lon, dataset, max_radius = 800, pressure = 850, 
                  stride = 10, h = 25, kernel = k.epanechnikov, plot = False):
     """
@@ -829,22 +845,6 @@ def storm_radius(center_lat, center_lon, dataset, max_radius = 800, pressure = 8
 
     # Get wind vector data into a numpy array
     wind_vectors = np.ma.masked_invalid([wind.sel(component = 'u'), wind.sel(component = 'v')])
-
-    def vector_rejection(a, b):
-        """
-        Calculate the vector rejection (i.e. perpendicular projection) of vector b onto vector a.
-        
-        Parameters:
-            - a (3d array): an array of shape (2, #lon, #lat) containing vector components for different positions on a grid.
-            - b (3d array): an array of the same shape as a, containing the vector components for projecting onto a.
-
-        Returns:
-            (2d array) an array of shape (2, #lon, #lat) containing the vector rejections.
-        """
-        dot_ab = np.einsum("ijk,ijk->jk", a, b)
-        dot_aa = np.einsum("ijk,ijk->jk", a, a)
-        to_subtract = np.multiply(np.divide(dot_ab, dot_aa), a)
-        return np.subtract(b, to_subtract)
 
     # Get tangential wind component
     tangential_component = vector_rejection(centered_position_vectors, wind_vectors)
@@ -920,4 +920,85 @@ def storm_radius(center_lat, center_lon, dataset, max_radius = 800, pressure = 8
     
     return rf
 
+def integrated_circulation(x, r, normalize = "log"):
+    """
+    Compute the integrated circulation map for a shear stamp.
+
+    Computes integrated circulation for stamps returned from shear_stamp() 
+    function. Integrated circulation is the sum of all tangential shear 
+    components with respect to some central point, where the sum is over all 
+    points within some radius of the central point.
+
+    Parameters:
+        - x (xarray.DataArray): Wind shear data output from shear_stamp().
+        - r (float): Radius to compute integrated circulation over (km). 
+        - normalize (str): One of {"log", "standard", "none"}:
+            + "log" normalizes shear vector field then multiplies each vector
+            component by the log of the original magnitude.
+            + "standard" normalizes magnitude of all shear field vectors to one.
+            + "none" means no normalization of the shear field is performed. 
     
+    Returns:
+        (xarray.DataArray): A data array containing radial profiles for each 
+        sector for both the u (zonal) and v (meridional) directions. 
+
+    """
+
+    # Get lat/lon grid
+    lat = x.lat.values
+    lon = x.lon.values
+    lat_grid, lon_grid = [x.T for x in np.meshgrid(lat, lon)]
+
+    # Initialize the matrix holding integrated circulation values
+    int_circulation = np.zeros_like(lat_grid)
+
+    shear_vectors = np.ma.masked_invalid([x.sel(component = 'u'), x.sel(component = 'v')])
+    shear_magnitude = np.sqrt(np.power(shear_vectors[0], 2) + np.power(shear_vectors[1], 2))
+    
+    # Perform normalization 
+    if normalize == "log":
+        log_magnitude = np.log(shear_magnitude + 1)
+        normed_vectors = np.multiply(np.divide(shear_vectors, shear_magnitude), log_magnitude)
+    elif normalize == "standard":
+        normed_vectors = np.divide(shear_vectors, shear_magnitude)
+    elif normalize == "none":
+        normed_vectors = shear_vectors
+
+    # Get center lat/lon of TC, and calculate distance matrix of each point in 
+    # the lat/lon grid to the center.
+    tc_center_lat = x.attrs["center_lat"]
+    tc_center_lon = x.attrs["center_lon"]
+    tc_dist_mat = great_circ_dist(tc_center_lat, tc_center_lon, lat_grid, lon_grid)
+
+    # For each point in the lat/lon grid
+    for i in range(lat_grid.shape[0]):
+        for j in range(lat_grid.shape[1]):
+            if tc_dist_mat[i,j] > x.attrs["stamp_radius"] - r:
+                # If we are within r of the edge of the stamp, do not calculate
+                int_circulation[i,j] = np.nan
+            else:
+                # Otherwise, get the integrated circulation around this central point.
+                center_lat = lat_grid[i, j]
+                center_lon = lon_grid[i, j]
+                dist_mat = great_circ_dist(center_lat, center_lon, lat_grid, lon_grid)
+
+                # Get centered position vectors for all points within r of this central point.
+                centered_position_vectors = np.ma.masked_invalid(np.where(dist_mat < r, np.array([lon_grid - center_lon, lat_grid - center_lat]), np.nan))
+
+                # Get the tangential component of each point within the circle of interest. 
+                tangential_component = vector_rejection(centered_position_vectors, normed_vectors)
+
+                # Calculate the sign of the cross product to tell if tangential component is CW or CCW
+                shear_vectors_for_cross = normed_vectors[[1,0],:,:]
+                shear_vectors_for_cross[1,:,:] = -1 * shear_vectors_for_cross[1,:,:]
+                cross_prod = np.einsum("ijk,ijk->jk", centered_position_vectors, shear_vectors_for_cross)
+                cross_prod = np.ma.masked_invalid(cross_prod)
+
+                # Get the tangential magnitude, signed by the cross product sign
+                tangential_magnitude = np.multiply(np.sqrt(np.power(tangential_component[0,:,:], 2) + np.power(tangential_component[1,:,:], 2)), np.sign(cross_prod))
+
+                # Finally, assign the sum of all tangential components in the circle to the final output matrix
+                int_circulation[i,j] = np.nansum(tangential_magnitude)/np.sum(np.logical_not(np.isnan(tangential_magnitude)))
+
+    return [int_circulation, lat_grid, lon_grid]
+        

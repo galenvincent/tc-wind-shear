@@ -4,7 +4,7 @@ import numpy as np
 
 import tc_functions as fun
 # You will need to create your own credentials file containing two variables, 
-# RDA_USER = your RDA username
+# RDA_USER = your RDA usernameS
 # RDA_PASSWORD = your password
 import credentials
 
