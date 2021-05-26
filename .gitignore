@@ -4,6 +4,8 @@ __pycache__/*
 .DS_Store
 data/profiles_vortex/*
 data/profiles_vortex_removed/*
+data/int_circ_vortex_removed/*
+data/int_circ_vortex/*
 figures/*
 eda-dashboard/*
 .Rhistory
