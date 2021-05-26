@@ -1,12 +1,12 @@
 #!/bin/bash -l
-#PBS -N profile_calcs
+#PBS -N profile_vortex
 #PBS -A UMEL0003
 #PBS -j oe
 #PBS -k eod
 #PBS -q regular
 #PBS -m abe
 #PBS -M galen@stat.cmu.edu
-#PBS -l walltime=06:00:00
+#PBS -l walltime=04:00:00
 #PBS -l select=1:ncpus=36
 
 ### Set temp to scratch
@@ -18,4 +18,4 @@ module purge
 module load ncarenv gnu/9.1.0 ncarcompilers python/3.7.9
 ncar_pylib windshear_npl_clone
 
-python3 profiles.py
+python3 profiles_vortex.py

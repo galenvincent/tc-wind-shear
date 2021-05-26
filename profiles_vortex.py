@@ -42,7 +42,7 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
         # Get wind shear with vortex removed (only for 2nd datapoint on... we only needed the center location for the 1st datapoint to calculate direction for the 2nd datapoint)
         if index != 0:
             vws.append(fun.shear_stamp(centers[index][0], centers[index][1], 800, gfs_data,
-                    vortex_rm = True, vortex_rm_rad = 650))
+                    vortex_rm = False, vortex_rm_rad = 650))
                     #### CHANGE THIS BACK TO TRUE VORTEX REMOVE!!!
 
     # Calculate storm direction
@@ -116,8 +116,8 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
 
     storm_profiles.to_netcdf(profiles_folder+"prof_"+id+".nc")
 
-shear_plt_folder = "/glade/work/galenv/shear_figs/"
-profiles_folder = "/glade/work/galenv/shear_profiles/"
+shear_plt_folder = "/glade/work/galenv/shear_figs_vortex/"
+profiles_folder = "/glade/work/galenv/shear_profiles_vortex/"
 
 #shear_plt_folder = "figures/"
 #profiles_folder = "data/profiles/"
