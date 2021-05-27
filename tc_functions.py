@@ -1000,5 +1000,5 @@ def integrated_circulation(x, r, normalize = "log"):
                 # Finally, assign the sum of all tangential components in the circle to the final output matrix
                 int_circulation[i,j] = np.nansum(tangential_magnitude)/np.sum(np.logical_not(np.isnan(tangential_magnitude)))
 
-    return [int_circulation, lat_grid, lon_grid]
+    return int_circulation
         
