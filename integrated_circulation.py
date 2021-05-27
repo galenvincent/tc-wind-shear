@@ -76,13 +76,13 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder)
 
     #storm_int_cir.to_netcdf(data_folder+"intcirc_"+id+".nc")
 
-#shear_plt_folder = "/glade/work/galenv/shear_figs/"
-#profiles_folder = "/glade/work/galenv/shear_profiles/"
+plt_folder = "/glade/work/galenv/int_circ_figs/"
+data_folder = "/glade/work/galenv/int_circ_data/"
 radius = 150
 normalize_option = "log"
 
-plt_folder = "figures/integrated_circulation_vortex_removed/"
-data_folder = "data/int_circ_vortex_removed/"
+#plt_folder = "figures/integrated_circulation_vortex_removed/"
+#data_folder = "data/int_circ_vortex_removed/"
 
 unique_storms = pd.Series(np.unique(storm_data['ID']))
 
