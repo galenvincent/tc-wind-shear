@@ -29,7 +29,7 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder)
         gfs_data = fun.gfs_access(year, month, day, hour, 
                                     credentials.RDA_USER, credentials.RDA_PASSWORD)
 
-        print("Doing #" + str(index+1) + "/" + str(storm.shape[0]))
+        print("Doing #" + str(index) + "/" + str(storm.shape[0]-1))
 
         vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, gfs_data,
                               vortex_rm = True, vortex_rm_rad = 650)
@@ -95,7 +95,9 @@ time.sleep(3)
 print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
-unique_storms.parallel_apply(int_circulation_storm, args = (storm_data, radius, normalize_option, plt_folder, data_folder))
-print("All done!")
+#unique_storms.parallel_apply(int_circulation_storm, 
+#                            args = (storm_data, radius, normalize_option, plt_folder, data_folder))
+#print("All done!")
 
-#unique_storms.iloc[2:5].apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
+unique_storms.iloc[3:7].parallel_apply(int_circulation_storm, 
+                                        args = (storm_data, radius, normalize_option, plt_folder, data_folder))
