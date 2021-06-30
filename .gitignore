@@ -10,3 +10,4 @@ figures/*
 eda-dashboard/*
 .Rhistory
 .ipynb*
+*.pbs
