@@ -186,7 +186,7 @@ class Hurdat:
         self.storms.drop("LEADING", axis = 1, inplace = True)
         self.storms = self.storms.reset_index(drop = True)
 
-    def identify_events(self, threshold):
+    def identify_events(self, threshold, col_names = None):
         """
         Identifies each point in the dataset as either being in a rapid
         intensification event, or being in a rapid weakening event. Both are 
@@ -248,8 +248,13 @@ class Hurdat:
             RW.extend(RW_temp)
         
         # Add new columns to dataframe
-        self.storms['RI'] = RI
-        self.storms['RW'] = RW
+        if col_names is None:
+            self.storms['RI'] = RI
+            self.storms['RW'] = RW
+        else:
+            self.storms[col_names[0]] = RI
+            self.storms[col_names[1]] = RW
+
     
     def distance_to_land_label(self, min_distance):
         """

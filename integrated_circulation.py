@@ -12,7 +12,7 @@ import plotting_functions as tcplt
 storm_data = pd.read_csv('data/filtered_storm_list.csv')
 storm_data["DATETIME"] = pd.to_datetime(storm_data["DATETIME"])
 
-def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder):
+def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder, upper = False):
     
     storm = storm_data[storm_data['ID'].str.match(id)]
     storm = storm.reset_index(drop = True)
@@ -31,8 +31,14 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder)
 
         print("Doing #" + str(index) + "/" + str(storm.shape[0]-1))
 
-        vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, gfs_data,
+        # Use upper level winds or shear?
+        if upper:
+            vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, 200, gfs_data,        
+                              vortex_rm = False, vortex_rm_rad = 650)
+        else: 
+            vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, gfs_data,
                               vortex_rm = True, vortex_rm_rad = 650)
+
         ic = fun.integrated_circulation(vws, r, normalize)
         int_circ.append(ic) # Use this later if you want
 
