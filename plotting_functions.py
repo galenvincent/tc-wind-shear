@@ -6,7 +6,7 @@ import matplotlib.ticker as mticker
 import numpy as np               # numpy 1.19.4
 import xarray as xr              # xarray 0.16.2
 
-def shear_map(x, savefile = None):
+def shear_map(x, savefile = None, arrows = True, gfs_grid = False):
     tclat = x.attrs["center_lat"]
     tclon = x.attrs["center_lon"]
     if tclon > 180:
@@ -21,6 +21,9 @@ def shear_map(x, savefile = None):
     u = x.sel(component = "u").values
     v = x.sel(component = "v").values
     mag = x.sel(component = "magnitude").values
+
+    glat_plot = np.where(np.isnan(u), np.nan, glat)
+    glon_plot = np.where(np.isnan(u), np.nan, glon)
 
     contour_array = np.arange(5.,40.1,1.)
     colorbar_array = np.arange(5.,40.1,5.)
@@ -58,30 +61,34 @@ def shear_map(x, savefile = None):
     cax = fig.add_axes([left, bottom, width, height])
     cbar = plt.colorbar(im, cax=cax, ticks=colorbar_array, orientation='horizontal')
     cax.xaxis.set_ticks_position('top')
-    cbar.ax.tick_params(labelsize=10, pad=0)
-    cbar.set_label('200-850-hPa shear magnitude [m/s]', size=10)
+    cbar.ax.tick_params(labelsize=12, pad=0)
+    cbar.set_label('200-850 hPa shear magnitude [m/s]', size=11)
     lw = 4. * (mag / 40.)  # scale factor for width of streamlines based on wind speed [m/s]
     ax.streamplot(glon, glat, u, v, density=0.6, color='k', 
                 linewidth=lw, transform=pc, zorder=5)
     ax.scatter(tclon, tclat, s=80, c='w', marker='X', linewidths=0.5, edgecolors='k', transform=pc, zorder=10)
+    if gfs_grid:
+        ax.scatter(glon_plot, glat_plot, s=1, c='black', transform=pc, alpha = 0.5)
+    
     prettylines(tclon, tclat)
 
     shear_x = x.attrs['avg_shear'][0]
     shear_y = x.attrs['avg_shear'][1]
     sx, sy = 5*np.array([shear_x, shear_y])/np.linalg.norm([shear_x, shear_y])
-    ax.arrow(tclon, tclat, sx, sy, transform = pc, color = "green", width = 0.15)
+    if arrows:
+        ax.arrow(tclon, tclat, sx, sy, transform = pc, color = "green", width = 0.15)
 
-    if 'storm_direction' in x.attrs:
-        vel_x = x.attrs['storm_direction'][0]
-        vel_y = x.attrs['storm_direction'][1]
-        vx, vy = 5*np.array([vel_x, vel_y])/np.linalg.norm([vel_x, vel_y])
-        ax.arrow(tclon, tclat, vx, vy, transform = pc, color = "blue", width = 0.15)
-    
+        if 'storm_direction' in x.attrs:
+            vel_x = x.attrs['storm_direction'][0]
+            vel_y = x.attrs['storm_direction'][1]
+            vx, vy = 5*np.array([vel_x, vel_y])/np.linalg.norm([vel_x, vel_y])
+            ax.arrow(tclon, tclat, vx, vy, transform = pc, color = "blue", width = 0.15)
     
     if savefile is None:
         plt.show()
     else:
         plt.savefig(savefile)
+
 
 def two_shade_map(x, toplot, 
                   shading = np.arange(-3.,3.,.1), ticks = np.arange(-3.1,3.1,1.), 
@@ -132,8 +139,8 @@ def two_shade_map(x, toplot,
     cax = fig.add_axes([left, bottom, width, height])
     cbar = plt.colorbar(im, cax=cax, ticks=ticks, orientation='horizontal')
     cax.xaxis.set_ticks_position('top')
-    cbar.ax.tick_params(labelsize=10, pad=0)
-    cbar.set_label(legend_title, size=10)
+    cbar.ax.tick_params(labelsize=12, pad=0)
+    cbar.set_label(legend_title, size=11)
     prettylines(tclon, tclat)
 
     if savefile is None:
