@@ -1,3 +1,4 @@
+*.o*
 .vscode
 credentials.py
 __pycache__/*
