@@ -33,7 +33,7 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
 
         # Use upper level winds or shear?
         if upper:
-            vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, 200, gfs_data,        
+            vws = fun.wind_stamp(datapoint['LAT'], datapoint['LON'], 800, 200, gfs_data,        
                               vortex_rm = False, vortex_rm_rad = 650)
         else: 
             vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, gfs_data,
@@ -49,41 +49,7 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
                             legend_title = "Integrated Circulation")
         
         np.save(data_folder + id + "_" + str(index - 1) + ".npy", ic)
-        
-    #time = np.array(storm["DATETIME"])[1:]
-    #wind = np.array(storm["WIND"])[1:]
-    #ri = np.array(storm["RI"])[1:]
-    #rw = np.array(storm["RW"])[1:]
-    #near_land = np.array(storm["NEAR_LAND"])[1:]
-    #dist_to_land = np.array(storm["DISTANCE"])[1:]
-    #center_lat = np.array(storm["LAT"])[1:]
-    #center_lon = np.array(storm["LON"])[1:]
 
-    #storm_int_cir = xr.Dataset(
-    #                {
-    #                    'integrated_circulation': (['time', 'lat', 'lon'], int_circ)
-    #                },
-    #                coords = {
-    #                    'time': time,
-    #                    'ri': ('time', ri),
-    #                    'rw': ('time', rw),
-    #                    'near_land': ('time', near_land),
-    #                    'wind': ('time', wind),
-    #                    'dist_to_land': ('time', dist_to_land),
-    #                    'center_lat': ('time', center_lat),
-    #                    'center_lon': ('time', center_lon)
-    #                },
-    #                attrs = {
-    #                    'long_name': "Set of all integrated circulation maps for an entire storm.",
-    #                    'storm_id': id,
-    #                    'integrated_circulation_radius': r
-    #                }
-    #)
-
-    #storm_int_cir.to_netcdf(data_folder+"intcirc_"+id+".nc")
-
-#shear_plt_folder = "/glade/work/galenv/shear_figs/"
-#profiles_folder = "/glade/work/galenv/shear_profiles/"
 radius = 150
 normalize_option = "log"
 
