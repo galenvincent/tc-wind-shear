@@ -49,10 +49,10 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
                             legend_title = "Integrated Circulation")
         
         np.save(data_folder + id + "_" + str(index - 1) + ".npy", ic)
-        
 
 plt_folder = "/glade/work/galenv/int_circ_figs/"
 data_folder = "/glade/work/galenv/int_circ_data/"
+
 radius = 150
 normalize_option = "log"
 

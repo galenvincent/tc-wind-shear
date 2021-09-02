@@ -128,7 +128,7 @@ class Hurdat:
 
         return(hourly_position)
 
-    def genesis_to_lysis_filter(self, minimum_wind):
+    def genesis_to_lysis_filter(self, minimum_wind, keep_leading_n = 1):
         """
         Filter's storms based on needing to have wind speed > minimum_wind for
         at least one time step. Then returns all data for the storm between
@@ -142,11 +142,16 @@ class Hurdat:
         Parameters:
             - minimum_wind (float): Wind threshold for defining genesis and 
             lysis. Units of kt. 
+            - keep_all_leading (int): Must be >= 0. Keep this many observations  
+            that proceed the genesis (when storm first goes >= minimum_wind).
+            This option is useful for keeping the data you might need for 
+            looking back in time from a rapid intensification observation. Storms 
+            that never go above minimum_wind are always removed from the dataset.
         
         Returns:
             A new Hurdat instance containing the subsetted data. An additional 
             column is added to the data indicating whether or not the data point
-            is a "leading" point.
+            is a "leading" point (points in the leadup to the true genesis point).
         """
 
         # Get modifiable copy of dataframe of storms
@@ -168,11 +173,10 @@ class Hurdat:
         hurdat['Stop'] = hurdat.groupby('ID')['DATETIME_ABOVE_MIN_WIND'].transform('max')
 
         # Filter down dataset to only include storms between genesis and lysis
-        hurdat = hurdat.loc[(hurdat['DATETIME'] >= hurdat['Start'] - pd.Timedelta(6, 'h')) & (hurdat['DATETIME'] <= hurdat['Stop'])]
-        hurdat['LEADING'] = hurdat["ID"].shift(1, fill_value = "") != hurdat["ID"]
+        hurdat = hurdat.loc[(hurdat['DATETIME'] >= hurdat['Start'] - pd.Timedelta(6*keep_leading_n, 'h')) & (hurdat['DATETIME'] <= hurdat['Stop'])]
+        hurdat['LEADING'] = hurdat["ID"].shift(keep_leading_n, fill_value = "") != hurdat["ID"]
         hurdat.drop(['MAX_WIND', 'DATETIME_ABOVE_MIN_WIND', 'Start', 'Stop'], axis = 1, inplace = True)
         hurdat = hurdat.reset_index(drop = True)
-        
 
         return Hurdat(data = hurdat)
 
