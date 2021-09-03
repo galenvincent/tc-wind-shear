@@ -9,10 +9,10 @@ import credentials
 import tc_functions as fun
 import plotting_functions as tcplt
 
-storm_data = pd.read_csv('data/filtered_storm_list.csv')
+storm_data = pd.read_csv('data/filtered_storm_list_keep-leading-5.csv')
 storm_data["DATETIME"] = pd.to_datetime(storm_data["DATETIME"])
 
-def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder, upper = False):
+def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder, upper = False, plot = False):
     
     storm = storm_data[storm_data['ID'].str.match(id)]
     storm = storm.reset_index(drop = True)
@@ -42,11 +42,12 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
         ic = fun.integrated_circulation(vws, r, normalize)
         int_circ.append(ic) # Use this later if you want
 
-        tcplt.two_shade_map(vws, ic, 
-                            shading = np.arange(-2.,2.,.05), 
-                            ticks = np.arange(-2.,2.,0.5), 
-                            savefile = plt_folder + id + "_" + str(index-1) + ".png",
-                            legend_title = "Integrated Circulation")
+        if plot:
+            tcplt.two_shade_map(vws, ic, 
+                                shading = np.arange(-2.,2.,.05), 
+                                ticks = np.arange(-2.,2.,0.5), 
+                                savefile = plt_folder + id + "_" + str(index-1) + ".png",
+                                legend_title = "Integrated Circulation")
         
         np.save(data_folder + id + "_" + str(index - 1) + ".npy", ic)
 
@@ -71,8 +72,8 @@ print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
 unique_storms.parallel_apply(int_circulation_storm, 
-                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, True))
+                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
 print("All done!")
 
 #unique_storms.iloc[3:7].parallel_apply(int_circulation_storm, 
-#                                        args = (storm_data, radius, normalize_option, plt_folder, data_folder))
+#                                        args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
