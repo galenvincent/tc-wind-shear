@@ -9,13 +9,11 @@ import hurdat as h
 import tc_functions as fun
 import plotting_functions as tcplt
 
-storm_data = pd.read_csv('data/filtered_storm_list.csv')
+storm_data = pd.read_csv('data/filtered_storm_list_keep-leading-5.csv')
 storm_data["DATETIME"] = pd.to_datetime(storm_data["DATETIME"])
 
-def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
-    #for id in unique_storms:
-    #id = "AL152016"
-    #id = 'AL012015'
+def profile_storm(id, storm_data, shear_plt_folder, profiles_folder, plot = False):
+    
     storm = storm_data[storm_data['ID'].str.match(id)]
     storm = storm.reset_index(drop = True)
     vws = []
@@ -39,20 +37,20 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
 
         print("Doing #" + str(index+1) + "/" + str(storm.shape[0]))
 
-        # Get wind shear with vortex removed (only for 2nd datapoint on... we only needed the center location for the 1st datapoint to calculate direction for the 2nd datapoint)
-        if index != 0:
-            vws.append(fun.shear_stamp(centers[index][0], centers[index][1], 800, gfs_data,
-                    vortex_rm = True, vortex_rm_rad = 650))
-                    #### CHANGE THIS BACK TO TRUE VORTEX REMOVE!!!
+        # Get wind shear with vortex removed 
+        vws.append(fun.shear_stamp(centers[index][0], centers[index][1], 800, gfs_data,
+                vortex_rm = True, vortex_rm_rad = 650))
 
     # Calculate storm direction
-    for ii in range(storm.shape[0]-1):
-        direction = (round(centers[ii + 1][1] - centers[ii][1], 5), round(centers[ii + 1][0] - centers[ii][0], 5))
+    for ii in range(1, storm.shape[0]):
+        direction = (round(centers[ii][1] - centers[ii - 1][1], 5), round(centers[ii][0] - centers[ii - 1][0], 5))
         
         if direction == (0, 0):
-            vws[ii].attrs['storm_direction'] = (0.01, 0)
+            vws[ii].attrs['storm_direction'] = (0.001, 0)
         else:
             vws[ii].attrs['storm_direction'] = direction
+
+    vws[0].attrs['storm_direction'] = vws[1].attrs['storm_direction']
 
     # Sectorize according to both storm direction and shear direction, and then calculate radial profiles based on this
     profiles = []
@@ -60,19 +58,21 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
         vws[ii] = fun.sectorize(vws[ii], vws[ii].attrs['avg_shear'][0], vws[ii].attrs['avg_shear'][1], "shear")
         vws[ii] = fun.sectorize(vws[ii], vws[ii].attrs['storm_direction'][0], vws[ii].attrs['storm_direction'][1], "velocity")
         profiles.append(fun.radial_profile(vws[ii], stride = 10, h = 35, sector_labels = ["shear", "velocity"]))
-        tcplt.shear_map(vws[ii], shear_plt_folder + id + "_" + str(ii) + ".png")
+        if plot:
+            tcplt.shear_map(vws[ii], shear_plt_folder + id + "_" + str(ii) + ".png")
 
     # Collect all storm info into one xarray DataSet
     stamp_radius = profiles[0].attrs['stamp_radius']
     radius = np.array(profiles[0].radius)
     component = np.array(profiles[0].component)
     sector = np.array(profiles[0].sector)
-    time = np.array(storm["DATETIME"])[1:]
-    wind = np.array(storm["WIND"])[1:]
-    ri = np.array(storm["RI"])[1:]
-    rw = np.array(storm["RW"])[1:]
-    near_land = np.array(storm["NEAR_LAND"])[1:]
-    dist_to_land = np.array(storm["DISTANCE"])[1:]
+    time = np.array(storm["DATETIME"])
+    wind = np.array(storm["WIND"])
+    ri = np.array(storm["RI"])
+    rw = np.array(storm["RW"])
+    leading = np.array(storm["LEADING"]) # Might need to remove this if there is no leading column
+    near_land = np.array(storm["NEAR_LAND"])
+    dist_to_land = np.array(storm["DISTANCE"])
     center_lat = [profile.attrs['center_lat'] for profile in profiles]
     center_lon = [profile.attrs['center_lon'] for profile in profiles]
     velocity_direction_u = [profile.attrs['sector_velocity_direction'][0] for profile in profiles]
@@ -99,6 +99,7 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder):
                         'near_land': ('time', near_land),
                         'wind': ('time', wind),
                         'dist_to_land': ('time', dist_to_land),
+                        'leading': ('time', leading),
                         'center_lat': ('time', center_lat),
                         'center_lon': ('time', center_lon),
                         'shear_u': ('time', shear_direction_u),
@@ -133,8 +134,8 @@ time.sleep(3)
 print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
-unique_storms.parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
+#unique_storms.parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder, False))
 
-print("All done!")
+#print("All done!")
 
-#unique_storms.iloc[2:5].apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder))
+unique_storms.iloc[2:5].apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder, False))
