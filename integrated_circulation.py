@@ -18,7 +18,7 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
     storm = storm.reset_index(drop = True)
     int_circ = []
     for index, datapoint in storm.iterrows():
-        if index == 0:
+        if index != 0:
             continue
 
         year = datapoint["DATETIME"].year
@@ -46,10 +46,10 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
             tcplt.two_shade_map(vws, ic, 
                                 shading = np.arange(-2.,2.,.05), 
                                 ticks = np.arange(-2.,2.,0.5), 
-                                savefile = plt_folder + id + "_" + str(index-1) + ".png",
+                                savefile = plt_folder + id + "_" + str(index) + ".png",
                                 legend_title = "Integrated Circulation")
         
-        np.save(data_folder + id + "_" + str(index - 1) + ".npy", ic)
+        np.save(data_folder + id + "_" + str(index) + ".npy", ic)
 
 plt_folder = "/glade/work/galenv/int_circ_figs/"
 data_folder = "/glade/work/galenv/int_circ_data/"
@@ -64,7 +64,7 @@ unique_storms = pd.Series(np.unique(storm_data['ID']))
 
 print("Getting GFS data warmup...")
 gfs_data = fun.gfs_access(2016, 12, 12, 0, credentials.RDA_USER, credentials.RDA_PASSWORD)
-print("GFS data has been gotten! On to the parallel")
+print("GFS data has been gotten! On to the parallel stuff")
 
 time.sleep(3)
 
