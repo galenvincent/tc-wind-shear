@@ -9,6 +9,7 @@ data/int_circ_vortex_removed/*
 data/int_circ_vortex/*
 data/int_circ_wind/*
 data/int_circ*
+data/test
 figures/*
 eda-dashboard/*
 .Rhistory

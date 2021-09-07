@@ -51,14 +51,14 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
         
         np.save(data_folder + id + "_" + str(index) + ".npy", ic)
 
-plt_folder = "/glade/work/galenv/int_circ_figs/"
-data_folder = "/glade/work/galenv/int_circ_data/"
+#plt_folder = "/glade/work/galenv/int_circ_figs/"
+#data_folder = "/glade/work/galenv/int_circ_data/"
 
 radius = 150
 normalize_option = "log"
 
-#plt_folder = "figures/integrated_circulation_vortex_removed/"
-#data_folder = "data/int_circ_vortex_removed/"
+plt_folder = "data/test/"
+data_folder = "data/test/"
 
 unique_storms = pd.Series(np.unique(storm_data['ID']))
 
@@ -71,9 +71,9 @@ time.sleep(3)
 print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
-unique_storms.parallel_apply(int_circulation_storm, 
-                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
-print("All done!")
+#unique_storms.parallel_apply(int_circulation_storm, 
+#                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
+#print("All done!")
 
-#unique_storms.iloc[3:7].parallel_apply(int_circulation_storm, 
-#                                        args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
+unique_storms.iloc[3:7].parallel_apply(int_circulation_storm, 
+                                        args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))

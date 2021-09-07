@@ -142,7 +142,7 @@ class Hurdat:
         Parameters:
             - minimum_wind (float): Wind threshold for defining genesis and 
             lysis. Units of kt. 
-            - keep_all_leading (int): Must be >= 0. Keep this many observations  
+            - keep_leading_n (int): Must be >= 0. Keep this many observations  
             that proceed the genesis (when storm first goes >= minimum_wind).
             This option is useful for keeping the data you might need for 
             looking back in time from a rapid intensification observation. Storms 
@@ -174,7 +174,7 @@ class Hurdat:
 
         # Filter down dataset to only include storms between genesis and lysis
         hurdat = hurdat.loc[(hurdat['DATETIME'] >= hurdat['Start'] - pd.Timedelta(6*keep_leading_n, 'h')) & (hurdat['DATETIME'] <= hurdat['Stop'])]
-        hurdat['LEADING'] = hurdat["ID"].shift(keep_leading_n, fill_value = "") != hurdat["ID"]
+        hurdat['LEADING'] = hurdat['DATETIME'] < hurdat['Start']
         hurdat.drop(['MAX_WIND', 'DATETIME_ABOVE_MIN_WIND', 'Start', 'Stop'], axis = 1, inplace = True)
         hurdat = hurdat.reset_index(drop = True)
 
@@ -190,17 +190,24 @@ class Hurdat:
         self.storms.drop("LEADING", axis = 1, inplace = True)
         self.storms = self.storms.reset_index(drop = True)
 
-    def identify_events(self, threshold, col_names = None):
+    def identify_events(self, threshold, col_names = None, drop_overlap = False):
         """
         Identifies each point in the dataset as either being in a rapid
         intensification event, or being in a rapid weakening event. Both are 
         defined as a change in storm wind speed of at least :threshold:kt within
         a 24 hour period.
 
-        :param threshold: Wind speed change (kt) needed to define RI or RW event. 
+        :param threshold: Wind speed change (kt) needed to define RI or RW event.
+        :param col_names: List of 2 column names, where the first is for RI and 
+            the second is for RW.
+        :param drop_overlap: Boolean for whether or not observations marked as 
+            both RI and RW should be removed from BOTH lists.  
         :return: Nothing. Just adds two columns to the storms dataframe, one for
                  indication of an RI event, one for indication of a RW event.
         """
+
+        ## TODO: Add an option to remove the last RI point and first RW point
+        ## (where there is commonly overlap).
 
         def single_storm_identify(intensities, thresh):
             TT = len(intensities)
@@ -251,6 +258,16 @@ class Hurdat:
             RW_temp = np.flip(single_storm_identify(np.flip(intensity), threshold))
             RW.extend(RW_temp)
         
+        # potentially drop the overlap points, where a point is marked as both
+        # RI and RW; typically happens at the turning point if RI is immediately
+        # followed by RW.
+        if drop_overlap:
+            RI = np.array(RI)
+            RW = np.array(RW)
+            where_overlap = (RI == RW) & (RI == True)
+            RI[where_overlap] = False
+            RW[where_overlap] = False
+
         # Add new columns to dataframe
         if col_names is None:
             self.storms['RI'] = RI
