@@ -18,8 +18,6 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
     storm = storm.reset_index(drop = True)
     int_circ = []
     for index, datapoint in storm.iterrows():
-        if index == 0:
-            continue
 
         year = datapoint["DATETIME"].year
         month = datapoint["DATETIME"].month
@@ -37,7 +35,7 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
                               vortex_rm = False, vortex_rm_rad = 650)
         else: 
             vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, gfs_data,
-                              vortex_rm = True, vortex_rm_rad = 650)
+                              vortex_rm = False, vortex_rm_rad = 650)
 
         ic = fun.integrated_circulation(vws, r, normalize)
         int_circ.append(ic) # Use this later if you want
@@ -46,10 +44,10 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
             tcplt.two_shade_map(vws, ic, 
                                 shading = np.arange(-2.,2.,.05), 
                                 ticks = np.arange(-2.,2.,0.5), 
-                                savefile = plt_folder + id + "_" + str(index-1) + ".png",
+                                savefile = plt_folder + id + "_" + str(index) + ".png",
                                 legend_title = "Integrated Circulation")
         
-        np.save(data_folder + id + "_" + str(index - 1) + ".npy", ic)
+        np.save(data_folder + id + "_" + str(index) + ".npy", ic)
 
 #plt_folder = "/glade/work/galenv/int_circ_figs/"
 #data_folder = "/glade/work/galenv/int_circ_data/"
@@ -71,9 +69,9 @@ time.sleep(3)
 print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
-#unique_storms.parallel_apply(int_circulation_storm, 
-#                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
-#print("All done!")
+unique_storms.parallel_apply(int_circulation_storm, 
+                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
+print("All done!")
 
-unique_storms.iloc[3:7].parallel_apply(int_circulation_storm, 
-                                        args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
+#unique_storms.iloc[3:7].parallel_apply(int_circulation_storm, 
+#                                        args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))

@@ -228,7 +228,7 @@ for (ii in 1:n_plot) {
 
 
 # LEVEL SET ANALYSIS (run before anything below) --------------------------
-data <- read_csv("data/int_circ_level_set_summary_-0.5_lg-conn-comp-only.csv") %>%
+data <- read_csv("data/int_circ_level_set_summary_-0.5_lag-4.csv") %>%
   mutate(intensity = case_when(
     `25+` ~ '25+',
     `15-25` ~ '[15, 25)',
@@ -967,8 +967,10 @@ de_ns_toplot_bybasin %>%
   facet_grid(basin ~ intensity)
 
 
-##TODO: 
-#     Connected components analysis (see Trey's code)
-#     Look at leadup to an RI observation (make a gif for the distributions in the preceding time lags)
-#     Look at diferences for first half/second half of rapid intensification period itself (need to go into the RI labeling code in python to do this I think)
+
+
+# Density Estimation with Lag ---------------------------------------------
+#### velocity ####
+#### shear ####
+#### north/south ####
 
