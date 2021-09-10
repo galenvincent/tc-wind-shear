@@ -3,11 +3,7 @@
 credentials.py
 __pycache__/*
 .DS_Store
-data/profiles_vortex/*
-data/profiles_vortex_removed/*
-data/int_circ_vortex_removed/*
-data/int_circ_vortex/*
-data/int_circ_wind/*
+data/profiles*
 data/int_circ*
 data/test
 figures/*
