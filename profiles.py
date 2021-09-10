@@ -50,6 +50,7 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder, plot = Fals
         
     if badIndex != -1:
         vws[badIndex] = vws[badIndex+1]
+        badIndex = -1
 
     # Calculate storm direction
     for ii in range(1, storm.shape[0]):

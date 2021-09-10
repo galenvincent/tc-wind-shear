@@ -35,7 +35,7 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
                               vortex_rm = False, vortex_rm_rad = 650)
         else: 
             vws = fun.shear_stamp(datapoint['LAT'], datapoint['LON'], 800, gfs_data,
-                              vortex_rm = False, vortex_rm_rad = 650)
+                              vortex_rm = True, vortex_rm_rad = 650)
 
         ic = fun.integrated_circulation(vws, r, normalize)
         int_circ.append(ic) # Use this later if you want
@@ -49,8 +49,8 @@ def int_circulation_storm(id, storm_data, r, normalize, plt_folder, data_folder,
         
         np.save(data_folder + id + "_" + str(index) + ".npy", ic)
 
-plt_folder = "/glade/work/galenv/int_circ_figs/"
-data_folder = "/glade/work/galenv/int_circ_data/"
+plt_folder = "/glade/work/galenv/int_circ_figs_kl5/"
+data_folder = "/glade/work/galenv/int_circ_data_kl5/"
 
 radius = 150
 normalize_option = "log"
