@@ -19,11 +19,18 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder, plot = Fals
     vws = []
     centers = []
     profiles = []
+    badIndex = -1
     for index, datapoint in storm.iterrows():
         year = datapoint["DATETIME"].year
         month = datapoint["DATETIME"].month
         day = datapoint["DATETIME"].day
         hour = datapoint["DATETIME"].hour
+        
+        if year == 2018 and month == 5 and day == 26 and hour == 18:
+            centers.append([datapoint['LAT'], datapoint['LON']])
+            vws.append(None)
+            badIndex = index
+            continue
 
         gfs_data = fun.gfs_access(year, month, day, hour, 
                                     credentials.RDA_USER, credentials.RDA_PASSWORD)
@@ -40,6 +47,9 @@ def profile_storm(id, storm_data, shear_plt_folder, profiles_folder, plot = Fals
         # Get wind shear with vortex removed 
         vws.append(fun.shear_stamp(centers[index][0], centers[index][1], 800, gfs_data,
                 vortex_rm = True, vortex_rm_rad = 650))
+        
+    if badIndex != -1:
+        vws[badIndex] = vws[badIndex+1]
 
     # Calculate storm direction
     for ii in range(1, storm.shape[0]):
@@ -134,8 +144,8 @@ time.sleep(3)
 print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
-#unique_storms.parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder, False))
+unique_storms.parallel_apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder, False))
 
-#print("All done!")
+print("All done!")
 
-unique_storms.iloc[2:5].apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder, False))
+#unique_storms.iloc[2:5].apply(profile_storm, args = (storm_data, shear_plt_folder, profiles_folder, False))
