@@ -70,7 +70,7 @@ print("Setting up parallel env.")
 pandarallel.initialize()
 print("Parallel env set up... starting parallel computations.")
 unique_storms.parallel_apply(int_circulation_storm, 
-                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, False, False))
+                            args = (storm_data, radius, normalize_option, plt_folder, data_folder, True, False))
 print("All done!")
 
 #unique_storms.iloc[3:7].parallel_apply(int_circulation_storm, 

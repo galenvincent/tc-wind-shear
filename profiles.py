@@ -9,7 +9,7 @@ import hurdat as h
 import tc_functions as fun
 import plotting_functions as tcplt
 
-storm_data = pd.read_csv('data/filtered_storm_list_keep-leading-5.csv')
+storm_data = pd.read_csv('data/filtered_storm_list.csv')
 storm_data["DATETIME"] = pd.to_datetime(storm_data["DATETIME"])
 
 def profile_storm(id, storm_data, shear_plt_folder, profiles_folder, plot = False):
